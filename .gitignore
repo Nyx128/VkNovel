@@ -1,0 +1,10 @@
+bin/
+obj/
+.vs/
+.git/
+
+*.sln
+*.user
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
