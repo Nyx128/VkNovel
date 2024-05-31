@@ -3,6 +3,10 @@
 #### A simple straight forward visual novel engine
 
 ## How to build the project
+
+#### Basic Requirement: Have the vulkan sdk installed on the system for premake to query the library path
+#### Make sure that vulkan 1.2 support is available
+
 ```cpp
 //in the project directory
 premake5 [buildTarget]
