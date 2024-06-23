@@ -24,6 +24,8 @@ namespace vkn {
 
 		inline int isKeyPressed(int key) { return keys[key]; }
 
+		inline void setTitle(const char* _title) { title = _title; glfwSetWindowTitle(handle, _title); }
+
 		//do not call this by any chance
 		void key_callback(int key, int scancode, int action, int mods);
 	private:

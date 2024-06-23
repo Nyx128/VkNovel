@@ -1,3 +1,4 @@
+#define VMA_IMPLEMENTATION
 #include "vkn_context.hpp"
 
 #include "vulkan/vulkan_to_string.hpp"
@@ -72,12 +73,20 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugMessageFunc(VkDebugUtilsMessageSeverityFlagB
 namespace vkn {
 	Context::Context(ContextInfo& info, vkn::Window& _window):ctxInfo(info), window(_window){
         initInstance();
+        initDispatchLoader();
         initDevice();
+        initMemoryAllocator();
         initSwapchain();
+        initSwapchainImageViews();
 	}
 
 	Context::~Context(){
+        for (auto& view : swapchainImageViews) {
+            device.destroyImageView(view);
+        }
+
         device.destroySwapchainKHR(swapchain);
+        vmaDestroyAllocator(allocator);
         device.destroy();
 
         instance.destroySurfaceKHR(surface);
@@ -172,6 +181,10 @@ namespace vkn {
         VkSurfaceKHR _surface;
         glfwCreateWindowSurface(static_cast<VkInstance>(instance), window.getHandle(), nullptr, &_surface);
         surface = vk::SurfaceKHR(_surface);
+    }
+
+    void Context::initDispatchLoader(){
+        dLoader = vk::DispatchLoaderDynamic(instance, vkGetInstanceProcAddr);
     }
 
     void Context::initDevice(){
@@ -305,8 +318,21 @@ namespace vkn {
         deviceInfo.ppEnabledExtensionNames = deviceExtensions.data();
 
         device = physicalDevice.createDevice(deviceInfo);
-        device.getQueue(graphicsQueueFamilyIndex.value(), 0);
-        device.getQueue(presentQueueFamilyIndex.value(), 0);
+        graphicsQueue = device.getQueue(graphicsQueueFamilyIndex.value(), 0);
+        presentQueue = device.getQueue(presentQueueFamilyIndex.value(), 0);
+    }
+
+    void Context::initMemoryAllocator(){
+        VmaAllocatorCreateInfo createInfo{};
+        createInfo.device = static_cast<VkDevice>(device);
+        createInfo.physicalDevice = static_cast<VkPhysicalDevice>(physicalDevice);
+        createInfo.instance = static_cast<VkInstance>(instance);
+        createInfo.vulkanApiVersion = VK_API_VERSION_1_2;
+        
+        auto result = vmaCreateAllocator(&createInfo, &allocator);
+        if (result != VK_SUCCESS) {
+            throw std::runtime_error("Failed to initialize VULKAN MEMORY ALLOCATOR");
+        }
     }
 
     void Context::initSwapchain(){
@@ -389,6 +415,26 @@ namespace vkn {
         }
 
         swapchain = device.createSwapchainKHR(swapchainInfo);
+
+        swapchainImages = device.getSwapchainImagesKHR(swapchain);
+    }
+
+    void Context::initSwapchainImageViews(){
+        swapchainImageViews.resize(swapchainImages.size());
+
+        for (int i = 0; i < swapchainImageViews.size(); i++) {
+            vk::ImageViewCreateInfo viewInfo(
+                    vk::ImageViewCreateFlags(),
+                    swapchainImages[i],
+                    vk::ImageViewType::e2D,
+                    swapchainFormat.format,
+                    vk::ComponentMapping(),
+                    vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1),
+                    nullptr
+                );
+
+            swapchainImageViews[i] = device.createImageView(viewInfo);
+        }
     }
 }
 

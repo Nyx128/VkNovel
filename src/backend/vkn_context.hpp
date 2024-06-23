@@ -1,5 +1,8 @@
+#pragma once
 #include "vulkan/vulkan.hpp"
 #include "vkn_window.hpp"
+
+#include "vma/vk_mem_alloc.h"
 
 #include <optional>
 
@@ -15,6 +18,20 @@ namespace vkn {
 
 		Context(ContextInfo& info, vkn::Window& _window);
 		~Context();
+
+		//getters
+		vk::Device& getDevice() { return device; }
+		vk::SurfaceFormatKHR getSwapchainFormat() { return swapchainFormat; }
+		std::vector<vk::ImageView>& getSwapchainImageViews() { return swapchainImageViews; }
+		vk::Extent2D getSwapchainExtent() { return swapchainExtent; }
+		uint32_t getGraphicsQueueFamilyIndex() { return graphicsQueueFamilyIndex.value(); }
+		uint32_t getPresentQueueFamilyIndex() { return presentQueueFamilyIndex.value(); }
+		vk::SwapchainKHR& getSwapchain() { return swapchain; }
+		vk::Queue& getGraphicsQueue() { return graphicsQueue; }
+		vk::Queue& getPresentQueue() { return presentQueue; }
+		VmaAllocator& getAllocator() { return allocator; }
+		vk::DispatchLoaderDynamic& getDispatchLoader() { return dLoader; }
+
 	private:
 		ContextInfo ctxInfo;
 
@@ -33,12 +50,15 @@ namespace vkn {
 		std::optional<uint32_t> presentQueueFamilyIndex;
 
 		std::vector<const char*> deviceExtensions = {
-			VK_KHR_SWAPCHAIN_EXTENSION_NAME
+			VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+			VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME
 		};
 		vk::Device device;
 
 		vk::Queue graphicsQueue;
 		vk::Queue presentQueue;
+
+		VmaAllocator allocator;
 
 		vk::Extent2D swapchainExtent;
 		vk::SurfaceFormatKHR swapchainFormat;
@@ -46,9 +66,17 @@ namespace vkn {
 		uint32_t swapchainImageCount = 3u;
 		vk::SwapchainKHR swapchain;
 
+		std::vector<vk::Image> swapchainImages;
+		std::vector<vk::ImageView> swapchainImageViews;
+
+		vk::DispatchLoaderDynamic dLoader;
+
 		//functions
 		void initInstance();
+		void initDispatchLoader();
 		void initDevice();
+		void initMemoryAllocator();
 		void initSwapchain();
+		void initSwapchainImageViews();
 	};
 }
