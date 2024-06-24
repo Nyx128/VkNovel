@@ -2,8 +2,7 @@
 #include "backend/vkn_context.hpp"
 #include "backend/vkn_pipeline.hpp"
 #include "backend/vkn_renderer.hpp"
-
-#include "backend/vkn_buffer.hpp"
+#include "backend/vkn_spriterenderer.hpp"
 
 #include <iostream>
 #include <stdexcept>
@@ -18,74 +17,19 @@ void run() {
 
 	vkn::Context context(contextInfo, win);
 
-	std::vector<vk::PipelineColorBlendAttachmentState> colorBlendAttachments(1);
-	colorBlendAttachments[0].colorWriteMask = vk::ColorComponentFlagBits::eA | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eR;
-	colorBlendAttachments[0].blendEnable = vk::True;
-	colorBlendAttachments[0].srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
-	colorBlendAttachments[0].dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
-	colorBlendAttachments[0].colorBlendOp = vk::BlendOp::eAdd;
-	colorBlendAttachments[0].srcAlphaBlendFactor = vk::BlendFactor::eOne;
-	colorBlendAttachments[0].dstAlphaBlendFactor = vk::BlendFactor::eZero;
-	colorBlendAttachments[0].alphaBlendOp = vk::BlendOp::eAdd;
+	std::vector<float> vertices = {
+			0.5f,  0.5f, 0.0f,  // top right
+			0.5f, -0.5f, 0.0f,  // bottom right
+			-0.5f, -0.5f, 0.0f,  // bottom left
+			-0.5f,  0.5f, 0.0f   // top left 
+	};
 
-	vk::PipelineLayoutCreateInfo layoutInfo;
-	vk::DescriptorSetLayoutCreateInfo setLayoutInfo;
-	setLayoutInfo.flags = vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptorKHR;
+	std::vector<uint32_t> indices = {
+		0, 1, 3,   // first triangle
+		1, 2, 3    // second triangle
+	};
 
-	vk::DescriptorSetLayoutBinding layoutBinding;
-	layoutBinding.binding = 0;
-	layoutBinding.descriptorCount = 1;
-	layoutBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
-	layoutBinding.stageFlags = vk::ShaderStageFlagBits::eVertex;
-
-	setLayoutInfo.bindingCount = 1;
-	setLayoutInfo.pBindings = &layoutBinding;
-
-	vk::DescriptorSetLayout setLayout;
-	setLayout = context.getDevice().createDescriptorSetLayout(setLayoutInfo);
-
-	layoutInfo.setLayoutCount = 1;
-	layoutInfo.pSetLayouts = &setLayout;
-
-
-	vk::AttachmentDescription colorAttachment;
-	colorAttachment.initialLayout = vk::ImageLayout::eUndefined;
-	colorAttachment.finalLayout = vk::ImageLayout::ePresentSrcKHR;
-	colorAttachment.format = context.getSwapchainFormat().format;
-	colorAttachment.samples = vk::SampleCountFlagBits::e1;
-	colorAttachment.loadOp = vk::AttachmentLoadOp::eClear;
-	colorAttachment.storeOp = vk::AttachmentStoreOp::eStore;
-
-	vk::AttachmentReference colorAttachmentRef;
-	colorAttachmentRef.attachment = 0;
-	colorAttachmentRef.layout = vk::ImageLayout::eColorAttachmentOptimal;
-
-	vk::SubpassDescription subpass;
-	subpass.colorAttachmentCount = 1;
-	subpass.pColorAttachments = &colorAttachmentRef;
-
-	vk::SubpassDependency dependency;
-	dependency.srcSubpass = vk::SubpassExternal;
-	dependency.dstSubpass = 0;
-	dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-	dependency.srcAccessMask = vk::AccessFlagBits::eNone;
-	dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-	dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-
-	vk::RenderPassCreateInfo passInfo;
-	passInfo.setAttachmentCount(1);
-	passInfo.pAttachments = &colorAttachment;
-	passInfo.setSubpassCount(1);
-	passInfo.pSubpasses = &subpass;
-	passInfo.dependencyCount = 1;
-	passInfo.pDependencies = &dependency;
-
-	vkn::PipelineInfo pInfo{ std::string("shaders/flat.vert.spv"), std::string("shaders/flat.frag.spv") , colorBlendAttachments, layoutInfo, passInfo };
-
-	vkn::Pipeline pipeline(context, pInfo);
-
-
-	vkn::Renderer renderer(context, pipeline);
+	vkn::SpriteRenderer srenderer(context);
 
 	std::string title = "";
 	int sample_rate = 30;
@@ -94,7 +38,7 @@ void run() {
 	while (!win.isClosed()) {
 		auto start = std::chrono::high_resolution_clock::now();
 
-		renderer.render();
+		srenderer.render(vertices, indices);
 		win.pollEvents();
 
 		auto end = std::chrono::high_resolution_clock::now();
@@ -109,7 +53,6 @@ void run() {
 		sample_index++;
 		sample_time += dt;
 	}
-	context.getDevice().destroyDescriptorSetLayout(setLayout);
 }
 
 int main() {

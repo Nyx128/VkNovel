@@ -1,14 +1,14 @@
-#include "vkn_buffer.hpp"
+#include "vkn_cpubuffer.hpp"
 
 namespace vkn {
-	Buffer::Buffer(vkn::Context& _context, vk::DeviceSize _bufferSize, vk::BufferUsageFlags _usageFlags, VmaMemoryUsage _memUsage):
-	context(_context), bufferSize(_bufferSize), usageFlags(_usageFlags), memUsage(_memUsage){
+	CPUBuffer::CPUBuffer(vkn::Context& _context, vk::DeviceSize _bufferSize, vk::BufferUsageFlags _usageFlags):
+	context(_context), bufferSize(_bufferSize), usageFlags(_usageFlags){
 		vk::BufferCreateInfo bufferInfo;
 		bufferInfo.setUsage(usageFlags);
 		bufferInfo.sharingMode = vk::SharingMode::eExclusive;
 		bufferInfo.size = bufferSize;
 
-		allocInfo.usage = memUsage;
+		allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
 
 		VmaAllocator& allocator = context.getAllocator();
 		auto result = vmaCreateBuffer(allocator, &static_cast<VkBufferCreateInfo>(bufferInfo), &allocInfo, &buf, &alloc, nullptr);
@@ -19,7 +19,7 @@ namespace vkn {
 		if (result != VK_SUCCESS) { throw std::runtime_error("Failed to map buffer memory"); }
 	}
 
-	Buffer::~Buffer(){
+	CPUBuffer::~CPUBuffer(){
 		vmaUnmapMemory(context.getAllocator(), alloc);
 		vmaDestroyBuffer(context.getAllocator(), buf, alloc);
 	}

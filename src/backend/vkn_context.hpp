@@ -68,6 +68,7 @@ namespace vkn {
 
 		std::vector<vk::Image> swapchainImages;
 		std::vector<vk::ImageView> swapchainImageViews;
+		std::vector<vk::Framebuffer> swapchainFramebuffers;
 
 		vk::DispatchLoaderDynamic dLoader;
 

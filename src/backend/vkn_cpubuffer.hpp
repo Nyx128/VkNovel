@@ -2,14 +2,14 @@
 #include "vkn_context.hpp"
 
 namespace vkn {
-	class Buffer {
+	class CPUBuffer {
 	public:
 
-		Buffer(const Buffer&) = delete;
-		Buffer& operator=(const Buffer&) = delete;
+		CPUBuffer(const CPUBuffer&) = delete;
+		CPUBuffer& operator=(const CPUBuffer&) = delete;
 
-		Buffer(vkn::Context& _context, vk::DeviceSize _bufferSize, vk::BufferUsageFlags _usageFlags, VmaMemoryUsage _memUsage);
-		~Buffer();
+		CPUBuffer(vkn::Context& _context, vk::DeviceSize _bufferSize, vk::BufferUsageFlags _usageFlags);
+		~CPUBuffer();
 
 		void* getMemory() { return mappedMem; }
 
@@ -24,7 +24,6 @@ namespace vkn {
 
 		vk::DeviceSize bufferSize;
 		vk::BufferUsageFlags usageFlags;
-		VmaMemoryUsage memUsage;
 
 		void* mappedMem = nullptr;
 	};
