@@ -1,7 +1,6 @@
 #include "backend/vkn_window.hpp"
 #include "backend/vkn_context.hpp"
 #include "backend/vkn_pipeline.hpp"
-#include "backend/vkn_renderer.hpp"
 #include "backend/vkn_spriterenderer.hpp"
 
 #include <iostream>
