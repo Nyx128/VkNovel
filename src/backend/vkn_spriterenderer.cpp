@@ -1,4 +1,5 @@
 #include "vkn_spriterenderer.hpp"
+#include <array>
 
 namespace vkn {
 	SpriteRenderer::SpriteRenderer(vkn::Context& _context):context(_context){
@@ -7,9 +8,13 @@ namespace vkn {
 		initCommandPool();
 		initSyncObjects();
 
-		//allocate enough space for atleast 1024 sprites. reallocate to bigger size if required
-		vertex_buffer = std::make_unique<vkn::CPUBuffer>(context, sizeof(float) * 1024 * 4, vk::BufferUsageFlagBits::eStorageBuffer);
-		index_buffer = std::make_unique<vkn::CPUBuffer>(context, sizeof(uint32_t) * 1024 * 6 , vk::BufferUsageFlagBits::eIndexBuffer);
+		memcpy(quad_vbo.getMemory(), quad_vertices.data(), quad_vertices.size() * sizeof(float));
+		memcpy(quad_ibo.getMemory(), indices.data(), indices.size() * sizeof(uint32_t));
+
+		idata_buffers.resize(20);//default max is 20 batches worth which would be 32 * 20 = 640 sprites.
+		for (auto& b : idata_buffers) {
+			b = std::make_unique<vkn::CPUBuffer>(context, sizeof(SpriteData) * batch_size, vk::BufferUsageFlagBits::eStorageBuffer);
+		}
 	}
 
 	SpriteRenderer::~SpriteRenderer(){
@@ -30,15 +35,12 @@ namespace vkn {
 		device.destroyDescriptorSetLayout(setLayout);
 	}
 
-	void SpriteRenderer::render(const std::vector<float>& vertices, const std::vector<uint32_t>& indices){
+	void SpriteRenderer::begin(){
+
 		auto device = context.getDevice();
-
-		memcpy(vertex_buffer->getMemory(), vertices.data(), sizeof(float) * vertices.size());
-		memcpy(index_buffer->getMemory(), indices.data(), sizeof(uint32_t) * indices.size());
-
 		device.waitForFences(1, &inFlightFences[frame_index], vk::True, UINT64_MAX);
 		device.resetFences(1, &inFlightFences[frame_index]);
-		uint32_t imageIndex;
+
 		imageIndex = device.acquireNextImageKHR(context.getSwapchain(), UINT64_MAX, imageAvailableSemaphores[frame_index], VK_NULL_HANDLE).value;
 
 		commandBuffers[frame_index].reset();
@@ -57,18 +59,6 @@ namespace vkn {
 		commandBuffers[frame_index].beginRenderPass(beginInfo, vk::SubpassContents::eInline);
 		commandBuffers[frame_index].bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline->getHandle());
 
-		vk::DescriptorBufferInfo bufferInfo;
-		bufferInfo.buffer = vertex_buffer->getHandle();
-		bufferInfo.offset = 0;
-		bufferInfo.range = vertex_buffer->getSize();
-
-		vk::WriteDescriptorSet pushWrite;
-		pushWrite.descriptorCount = 1;
-		pushWrite.dstBinding = 0;
-		pushWrite.descriptorType = vk::DescriptorType::eStorageBuffer;
-		pushWrite.pBufferInfo = &bufferInfo;
-
-
 		vk::Viewport viewport;
 		viewport.width = context.getSwapchainExtent().width;
 		viewport.height = context.getSwapchainExtent().height;
@@ -84,19 +74,82 @@ namespace vkn {
 		scissor.offset = vk::Offset2D(0, 0);
 
 		commandBuffers[frame_index].setScissor(0, 1, &scissor);
-		VkWriteDescriptorSet write = static_cast<VkWriteDescriptorSet>(pushWrite);
+	}
 
-		commandBuffers[frame_index].bindIndexBuffer(index_buffer->getHandle(), 0, vk::IndexType::eUint32);
-		context.getDispatchLoader().vkCmdPushDescriptorSetKHR(VkCommandBuffer(commandBuffers[frame_index]), VK_PIPELINE_BIND_POINT_GRAPHICS, VkPipelineLayout(pipeline->getLayout()), 0, 1, &write);
+	void SpriteRenderer::draw(std::vector<SpriteData>& sprites){
+		auto device = context.getDevice();
 
-		commandBuffers[frame_index].drawIndexed(indices.size(), 1, 0, 0, 0);
+		uint32_t numBatches = ceilf((float)sprites.size() / (float)batch_size);
+		if (numBatches > idata_buffers.size()) {
+			//reset all buffers and resize
+			for (auto& b : idata_buffers) {
+				b.reset();
+			}
+
+			idata_buffers.resize(numBatches);
+			for (auto& b : idata_buffers) {
+				b = std::make_unique<vkn::CPUBuffer>(context, sizeof(SpriteData) * batch_size, vk::BufferUsageFlagBits::eStorageBuffer);
+			}
+		}
+
+		//populate the buffers 
+		uint32_t remainder = sprites.size() % batch_size;
+		for (int i = 0; i < numBatches; i++) {
+			if (i != numBatches - 1 || remainder == 0) {
+				memcpy(idata_buffers[i]->getMemory(), &sprites[i * batch_size], sizeof(SpriteData) * batch_size);
+			}
+			else {
+				memcpy(idata_buffers[i]->getMemory(), &sprites[i * batch_size], sizeof(SpriteData) * remainder);
+			}
+		}
+
+		vk::DescriptorBufferInfo bufferInfo;
+		bufferInfo.buffer = quad_vbo.getHandle();
+		bufferInfo.offset = 0;
+		bufferInfo.range = quad_vbo.getSize();
+
+		vk::WriteDescriptorSet vbufferPush;
+		vbufferPush.descriptorType = vk::DescriptorType::eStorageBuffer;
+		vbufferPush.descriptorCount = 1;
+		vbufferPush.dstBinding = 0;
+		vbufferPush.pBufferInfo = &bufferInfo;
+
+		commandBuffers[frame_index].bindIndexBuffer(quad_ibo.getHandle(), 0, vk::IndexType::eUint32);
+		VkWriteDescriptorSet _vbufferBufferPush = vbufferPush;
+		context.getDispatchLoader().vkCmdPushDescriptorSetKHR(VkCommandBuffer(commandBuffers[frame_index]), VK_PIPELINE_BIND_POINT_GRAPHICS, VkPipelineLayout(pipeline->getLayout()), 0, 1, &_vbufferBufferPush);
+
+		for (int i = 0; i < numBatches; i++) {
+			vk::DescriptorBufferInfo instanceBufferInfo;
+			instanceBufferInfo.buffer = idata_buffers[i]->getHandle();
+			instanceBufferInfo.offset = 0;
+			instanceBufferInfo.range = idata_buffers[i]->getSize();
+
+			vk::WriteDescriptorSet idataPush;
+			idataPush.descriptorCount = 1;
+			idataPush.descriptorType = vk::DescriptorType::eStorageBuffer;
+			idataPush.dstBinding = 1;
+			idataPush.pBufferInfo = &instanceBufferInfo;
+
+			VkWriteDescriptorSet _idataPush = idataPush;
+
+			context.getDispatchLoader().vkCmdPushDescriptorSetKHR(VkCommandBuffer(commandBuffers[frame_index]), VK_PIPELINE_BIND_POINT_GRAPHICS, VkPipelineLayout(pipeline->getLayout()), 0, 1, &_idataPush);
+			if (i != numBatches - 1 || remainder == 0) {
+				commandBuffers[frame_index].drawIndexed(indices.size(), batch_size, 0, 0, 0);
+			}
+			else {
+				commandBuffers[frame_index].drawIndexed(indices.size(), remainder, 0, 0, 0);
+			}
+		}
+	}
+
+	void SpriteRenderer::end(){
 		commandBuffers[frame_index].endRenderPass();
 
 		commandBuffers[frame_index].end();
 
 		vk::SubmitInfo submitInfo;
 
-		std::array<vk::PipelineStageFlags, 1> waitStages = { vk::PipelineStageFlagBits::eColorAttachmentOutput };
+		std::array<vk::PipelineStageFlags, 1> waitStages = { vk::PipelineStageFlagBits::eTopOfPipe };
 
 		submitInfo.waitSemaphoreCount = 1;
 		submitInfo.pWaitSemaphores = &imageAvailableSemaphores[frame_index];
@@ -155,20 +208,27 @@ namespace vkn {
 		vk::DescriptorSetLayoutCreateInfo setLayoutInfo;
 		setLayoutInfo.flags = vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptorKHR;
 
-		vk::DescriptorSetLayoutBinding layoutBinding;
-		layoutBinding.binding = 0;
-		layoutBinding.descriptorCount = 1;
-		layoutBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
-		layoutBinding.stageFlags = vk::ShaderStageFlagBits::eVertex;
+		vk::DescriptorSetLayoutBinding vBinding;
+		vBinding.binding = 0;
+		vBinding.descriptorCount = 1;
+		vBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
+		vBinding.stageFlags = vk::ShaderStageFlagBits::eVertex;
 
-		setLayoutInfo.bindingCount = 1;
-		setLayoutInfo.pBindings = &layoutBinding;
+		vk::DescriptorSetLayoutBinding instBinding;
+		instBinding.binding = 1;
+		instBinding.descriptorCount = 1;
+		instBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
+		instBinding.stageFlags = vk::ShaderStageFlagBits::eVertex;
+
+		std::array<vk::DescriptorSetLayoutBinding, 2> layoutBindings = { vBinding, instBinding };
+
+		setLayoutInfo.bindingCount = layoutBindings.size();
+		setLayoutInfo.pBindings = layoutBindings.data();
 
 		setLayout = context.getDevice().createDescriptorSetLayout(setLayoutInfo);
 
 		layoutInfo.setLayoutCount = 1;
 		layoutInfo.pSetLayouts = &setLayout;
-
 
 		vk::AttachmentDescription colorAttachment;
 		colorAttachment.initialLayout = vk::ImageLayout::eUndefined;
@@ -186,21 +246,11 @@ namespace vkn {
 		subpass.colorAttachmentCount = 1;
 		subpass.pColorAttachments = &colorAttachmentRef;
 
-		vk::SubpassDependency dependency;
-		dependency.srcSubpass = vk::SubpassExternal;
-		dependency.dstSubpass = 0;
-		dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-		dependency.srcAccessMask = vk::AccessFlagBits::eNone;
-		dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-		dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-
 		vk::RenderPassCreateInfo passInfo;
 		passInfo.setAttachmentCount(1);
 		passInfo.pAttachments = &colorAttachment;
 		passInfo.setSubpassCount(1);
 		passInfo.pSubpasses = &subpass;
-		passInfo.dependencyCount = 1;
-		passInfo.pDependencies = &dependency;
 
 		vkn::PipelineInfo pInfo{ std::string("shaders/flat.vert.spv"), std::string("shaders/flat.frag.spv") , colorBlendAttachments, layoutInfo, passInfo };
 
@@ -227,6 +277,11 @@ namespace vkn {
 	void SpriteRenderer::initSyncObjects(){
 		vk::FenceCreateInfo fenceInfo;
 		fenceInfo.flags = vk::FenceCreateFlagBits::eSignaled;
+
+		vk::SemaphoreTypeCreateInfo sTypeInfo;
+		sTypeInfo.semaphoreType = vk::SemaphoreType::eTimeline;
+
+
 		vk::SemaphoreCreateInfo semaphoreInfo;
 
 		inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);

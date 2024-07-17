@@ -7,13 +7,22 @@ struct Vertex
 	float vx, vy, vz;
 };
 
+struct Sprite{
+	mat4 transform;
+};
+
 layout(binding = 0) readonly buffer Vertices
 {
 	Vertex vertices[];
 };
 
+layout(binding = 1) readonly buffer Sprites
+{
+	Sprite sprites[];
+};
+
 void main() {
     Vertex v = vertices[gl_VertexIndex];
-    gl_Position = vec4(v.vx, v.vy, v.vz, 1.0);
-    fragColor = vec3(0.02, 0.3, 1.0);
+	Sprite sp = sprites[gl_InstanceIndex];
+    gl_Position = sp.transform * vec4(v.vx, v.vy, v.vz, 1.0);
 }

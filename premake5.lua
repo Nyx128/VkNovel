@@ -26,7 +26,7 @@ project "VkNovel"
     "include/**.h"
   }
 
-  includedirs{vulkanIncludeDir, projectDir .. "\\include"}
+  includedirs{vulkanIncludeDir, projectDir .. "\\include", projectDir .. "\\src"}
   libdirs{projectDir .. "\\lib", vulkanLibDir}
 
   links{"vulkan-1", "glfw3"}

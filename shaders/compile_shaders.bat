@@ -1,4 +1,4 @@
-@echo on
+@echo off
 
 REM Check if VULKAN_SDK is set
 if defined VULKAN_SDK (
