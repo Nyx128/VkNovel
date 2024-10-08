@@ -4,6 +4,7 @@
 #include "backend/vkn_spriterenderer.hpp"
 
 #include "game/vkn_sprite.hpp"
+#include "game/vkn_texture.hpp"
 
 #include "systems/vkn_spriterenderingsystem.hpp"
 
@@ -13,21 +14,12 @@
 #include <random>
 #include <cmath>
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "glm/glm.hpp"
-#include "glm/gtc/matrix_transform.hpp"
 
-glm::mat4 ortho_proj(float left, float right, float top, float bottom, float near, float far) {
-	glm::mat4 projectionMatrix = glm::mat4{ 1.0f };
-	projectionMatrix[0][0] = 2.f / (right - left);
-	projectionMatrix[1][1] = 2.f / (bottom - top);
-	projectionMatrix[2][2] = 1.f / (far - near);
-	projectionMatrix[3][0] = -(right + left) / (right - left);
-	projectionMatrix[3][1] = -(bottom + top) / (bottom - top);
-	projectionMatrix[3][2] = -near / (far - near);
-
-	return projectionMatrix;
+void sp_update(std::vector<vkn::Sprite>& sprites) {
+	for (auto& sp : sprites) {
+		sp.rotation.z += glm::radians(2.0f);
+	}
 }
 
 void run() {
@@ -39,6 +31,9 @@ void run() {
 
 	vkn::Context context(contextInfo, win);
 
+	std::shared_ptr<vkn::Texture> statue= std::make_shared<vkn::Texture>(context, "assets/statue.jpg");
+	std::shared_ptr<vkn::Texture> zoro = std::make_shared<vkn::Texture>(context, "assets/zoro.png");
+
 	vkn::SpriteRenderer srenderer{ context };
 
 	std::string title = "";
@@ -46,37 +41,40 @@ void run() {
 	int sample_index = 0;
 	float sample_time = 0.0f;
 
-	vkn::SpriteRenderingSystem sp_sys(context);
+	vkn::SpriteRenderingSystem sp_sys(context, sp_update);
 	std::random_device rd;
 
-	// Choose a random number generator and seed it
-	std::mt19937 gen(rd());
+	vkn::Sprite sp(zoro);
 
-	std::uniform_real_distribution<> pos_dis_x(-7.5f, 7.5f);
-	std::uniform_real_distribution<> pos_dis_y(-4.0f, 4.0f);
-	std::uniform_real_distribution<> rot_dis(-180.0f, 180.0f);
-	for (int i = 0; i < 1024; i++) {
-		vkn::Sprite sp;
+	sp.scale = glm::vec3(0.5f);
+	sp.pos = glm::vec3(0.0f, 0.0f, 1.0f);
+	sp.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+	sp.col = glm::vec3(1.0f);
 
-		sp.scale = glm::vec3(0.03f);
-		sp.pos = glm::vec3(pos_dis_x(gen), pos_dis_y(gen), 1.0f);
-		sp.rotation = glm::vec3(0.0f, 0.0f, glm::radians(rot_dis(gen)));
+	sp_sys.addSprite(sp);
 
-		sp_sys.addSprite(sp);
-	}
+	sp.tex = statue;
+	sp.pos = glm::vec3(0.6f, 0.0f, 1.5f);
+	sp.col = glm::vec3(0.0f);
+	sp.scale = glm::vec3(1.0f);
+
+	sp_sys.addSprite(sp);
 
 	float timer = 0.0f;
 	while (!win.isClosed()) {
 		auto start = std::chrono::high_resolution_clock::now();
 
+		sp_sys.update();
+
 		srenderer.begin();
-		srenderer.draw(sp_sys.getSpriteData());
+		srenderer.draw(sp_sys.getSpriteData(), sp_sys.get_textures());
 		srenderer.end();
 		win.pollEvents();
 
 		auto end = std::chrono::high_resolution_clock::now();
 		float dt = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 		timer += dt;
+
 		if (sample_index > sample_rate) {
 			float avg_dt = sample_time / sample_rate;
 			title = std::string("VkNovel") + std::string(" FPS: ") + std::to_string((int)round(1000.0f / avg_dt));

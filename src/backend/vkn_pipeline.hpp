@@ -9,6 +9,7 @@ namespace vkn {
 		std::vector<vk::PipelineColorBlendAttachmentState>& colorBlendAttachments;
 		vk::PipelineLayoutCreateInfo& layoutInfo;
 		vk::RenderPassCreateInfo& passInfo;
+		vk::PipelineDepthStencilStateCreateInfo depthStencilInfo;
 	};
 
 	class Pipeline {

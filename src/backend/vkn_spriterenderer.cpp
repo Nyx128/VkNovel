@@ -47,10 +47,12 @@ namespace vkn {
 
 		commandBuffers[frame_index].begin(vk::CommandBufferBeginInfo());
 
-		vk::ClearValue clearVal(vk::ClearColorValue(0.03f, 0.03f, 0.03f, 1.0f));
+		
+		std::array<vk::ClearValue, 2> clearValues = { vk::ClearValue(vk::ClearColorValue(0.03f, 0.03f, 0.03f, 1.0f)),
+													 vk::ClearValue(vk::ClearDepthStencilValue(1.0f, 0)) };
 		vk::RenderPassBeginInfo beginInfo;
-		beginInfo.clearValueCount = 1;
-		beginInfo.pClearValues = &clearVal;
+		beginInfo.clearValueCount = clearValues.size();
+		beginInfo.pClearValues = clearValues.data();
 		beginInfo.renderPass = pipeline->getRenderPass();
 		beginInfo.framebuffer = swapchainFramebuffers[imageIndex];
 		beginInfo.renderArea.offset = vk::Offset2D(0, 0);
@@ -74,9 +76,10 @@ namespace vkn {
 		scissor.offset = vk::Offset2D(0, 0);
 
 		commandBuffers[frame_index].setScissor(0, 1, &scissor);
+
 	}
 
-	void SpriteRenderer::draw(std::vector<SpriteData>& sprites){
+	void SpriteRenderer::draw(std::vector<SpriteData>& sprites, const std::vector<std::shared_ptr<vkn::Texture>>& tex){
 		auto device = context.getDevice();
 
 		uint32_t numBatches = ceilf((float)sprites.size() / (float)batch_size);
@@ -117,8 +120,47 @@ namespace vkn {
 		commandBuffers[frame_index].bindIndexBuffer(quad_ibo.getHandle(), 0, vk::IndexType::eUint32);
 		VkWriteDescriptorSet _vbufferBufferPush = vbufferPush;
 		context.getDispatchLoader().vkCmdPushDescriptorSetKHR(VkCommandBuffer(commandBuffers[frame_index]), VK_PIPELINE_BIND_POINT_GRAPHICS, VkPipelineLayout(pipeline->getLayout()), 0, 1, &_vbufferBufferPush);
+		
+		/*std::array<vk::DescriptorImageInfo, 2> texInfos;
+		vk::DescriptorImageInfo texInfo;
+		texInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+		texInfo.imageView = tex[0]->getView();
+		texInfo.sampler = tex[0]->getSampler();
+		texInfos[0] = texInfo;
+
+		vk::DescriptorImageInfo texInfo_1;
+		texInfo_1.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+		texInfo_1.imageView = tex[1]->getView();
+		texInfo_1.sampler = tex[1]->getSampler();
+		texInfos[1] = texInfo_1;
+
+		vk::WriteDescriptorSet texPush;
+		texPush.descriptorCount = 2;
+		texPush.descriptorType = vk::DescriptorType::eCombinedImageSampler;
+		texPush.dstBinding = 2;
+		texPush.pImageInfo = texInfos.data();*/
+
+
+		std::vector<vk::DescriptorImageInfo> texInfos(tex.size());
+		vk::DescriptorImageInfo texInfo;
+		texInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+		for (int i = 0; i < texInfos.size(); i++) {
+			texInfo.imageView = tex[i]->getView();
+			texInfo.sampler = tex[i]->getSampler();
+			texInfos[i] = texInfo;
+		}
+
+		vk::WriteDescriptorSet texPush;
+		texPush.descriptorCount = texInfos.size();
+		texPush.descriptorType = vk::DescriptorType::eCombinedImageSampler;
+		texPush.dstBinding = 2;
+		texPush.pImageInfo = texInfos.data();
+
+		VkWriteDescriptorSet _texPush = texPush;
+		context.getDispatchLoader().vkCmdPushDescriptorSetKHR(VkCommandBuffer(commandBuffers[frame_index]), VK_PIPELINE_BIND_POINT_GRAPHICS, VkPipelineLayout(pipeline->getLayout()), 0, 1, &_texPush);
 
 		for (int i = 0; i < numBatches; i++) {
+
 			vk::DescriptorBufferInfo instanceBufferInfo;
 			instanceBufferInfo.buffer = idata_buffers[i]->getHandle();
 			instanceBufferInfo.offset = 0;
@@ -140,6 +182,7 @@ namespace vkn {
 				commandBuffers[frame_index].drawIndexed(indices.size(), remainder, 0, 0, 0);
 			}
 		}
+
 	}
 
 	void SpriteRenderer::end(){
@@ -178,8 +221,9 @@ namespace vkn {
 		swapchainFramebuffers.resize(swapchainImageViews.size());
 
 		for (int i = 0; i < swapchainFramebuffers.size(); i++) {
-			std::array<vk::ImageView, 1> attachments = {
-				swapchainImageViews[i]
+			std::array<vk::ImageView, 2> attachments = {
+				swapchainImageViews[i],
+				context.getDepthView()
 			};
 
 			vk::FramebufferCreateInfo fbInfo(vk::FramebufferCreateFlags(),
@@ -220,7 +264,14 @@ namespace vkn {
 		instBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
 		instBinding.stageFlags = vk::ShaderStageFlagBits::eVertex;
 
-		std::array<vk::DescriptorSetLayoutBinding, 2> layoutBindings = { vBinding, instBinding };
+		vk::DescriptorSetLayoutBinding texBinding;
+		texBinding.binding = 2;
+		texBinding.descriptorCount = 2;
+		texBinding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
+		texBinding.stageFlags = vk::ShaderStageFlagBits::eAllGraphics;
+
+
+		std::array<vk::DescriptorSetLayoutBinding, 3> layoutBindings = { vBinding, instBinding, texBinding };
 
 		setLayoutInfo.bindingCount = layoutBindings.size();
 		setLayoutInfo.pBindings = layoutBindings.data();
@@ -230,6 +281,15 @@ namespace vkn {
 		layoutInfo.setLayoutCount = 1;
 		layoutInfo.pSetLayouts = &setLayout;
 
+		vk::PipelineDepthStencilStateCreateInfo depthStencil{};
+		depthStencil.depthTestEnable = VK_TRUE;
+		depthStencil.depthWriteEnable = VK_TRUE;
+		depthStencil.depthCompareOp = vk::CompareOp::eLess;
+		depthStencil.depthBoundsTestEnable = VK_FALSE;
+		depthStencil.minDepthBounds = 0.0f;
+		depthStencil.maxDepthBounds = 1.0f;
+		depthStencil.stencilTestEnable = VK_FALSE;
+
 		vk::AttachmentDescription colorAttachment;
 		colorAttachment.initialLayout = vk::ImageLayout::eUndefined;
 		colorAttachment.finalLayout = vk::ImageLayout::ePresentSrcKHR;
@@ -238,21 +298,39 @@ namespace vkn {
 		colorAttachment.loadOp = vk::AttachmentLoadOp::eClear;
 		colorAttachment.storeOp = vk::AttachmentStoreOp::eStore;
 
+
+		vk::AttachmentDescription depthAttachment{};
+		depthAttachment.format = vk::Format::eD32Sfloat;
+		depthAttachment.samples = vk::SampleCountFlagBits::e1;;
+		depthAttachment.loadOp = vk::AttachmentLoadOp::eClear;
+		depthAttachment.storeOp = vk::AttachmentStoreOp::eDontCare;
+		depthAttachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+		depthAttachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+		depthAttachment.initialLayout = vk::ImageLayout::eUndefined;
+		depthAttachment.finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+
 		vk::AttachmentReference colorAttachmentRef;
 		colorAttachmentRef.attachment = 0;
 		colorAttachmentRef.layout = vk::ImageLayout::eColorAttachmentOptimal;
 
+		vk::AttachmentReference depthAttachmentRef;
+		depthAttachmentRef.attachment = 1;
+		depthAttachmentRef.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+
 		vk::SubpassDescription subpass;
 		subpass.colorAttachmentCount = 1;
 		subpass.pColorAttachments = &colorAttachmentRef;
+		subpass.pDepthStencilAttachment = &depthAttachmentRef;
+
+		std::array<vk::AttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
 
 		vk::RenderPassCreateInfo passInfo;
-		passInfo.setAttachmentCount(1);
-		passInfo.pAttachments = &colorAttachment;
+		passInfo.setAttachmentCount(attachments.size());
+		passInfo.pAttachments = attachments.data();
 		passInfo.setSubpassCount(1);
 		passInfo.pSubpasses = &subpass;
 
-		vkn::PipelineInfo pInfo{ std::string("shaders/flat.vert.spv"), std::string("shaders/flat.frag.spv") , colorBlendAttachments, layoutInfo, passInfo };
+		vkn::PipelineInfo pInfo{ std::string("shaders/flat.vert.spv"), std::string("shaders/flat.frag.spv") , colorBlendAttachments, layoutInfo, passInfo , depthStencil};
 
 		pipeline = std::make_unique<vkn::Pipeline>(context, pInfo);
 	}
@@ -294,5 +372,18 @@ namespace vkn {
 			imageAvailableSemaphores[i] = device.createSemaphore(semaphoreInfo);
 			renderFinishedSemaphores[i] = device.createSemaphore(semaphoreInfo);
 		}
+	}
+
+	void SpriteRenderer::initDescPool(){
+		vk::DescriptorPoolSize poolSize{};
+		poolSize.type = vk::DescriptorType::eCombinedImageSampler;
+		poolSize.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+		vk::DescriptorPoolCreateInfo poolInfo;
+		poolInfo.maxSets = MAX_FRAMES_IN_FLIGHT;
+		poolInfo.poolSizeCount = 1;
+		poolInfo.pPoolSizes = &poolSize;
+
+		descPool = context.getDevice().createDescriptorPool(poolInfo);
 	}
 }

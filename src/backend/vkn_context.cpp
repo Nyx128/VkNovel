@@ -78,9 +78,17 @@ namespace vkn {
         initMemoryAllocator();
         initSwapchain();
         initSwapchainImageViews();
+        initSwapchainDepth();
+        initCommandPool();
 	}
 
 	Context::~Context(){
+
+        device.destroyCommandPool(singleTimeCommandPool);
+
+        device.destroyImageView(swapchainDepthView);
+        vmaDestroyImage(allocator, swapchainDepthImage, depthImageAlloc);
+
         for (auto& view : swapchainImageViews) {
             device.destroyImageView(view);
         }
@@ -95,6 +103,28 @@ namespace vkn {
 #endif
 		instance.destroy();
 	}
+
+    void Context::beginSingleTimeCommandBuffer(vk::CommandBuffer& commandBuffer){
+        vk::CommandBufferAllocateInfo allocInfo(singleTimeCommandPool, vk::CommandBufferLevel::ePrimary, 1);
+
+        device.allocateCommandBuffers(&allocInfo, &commandBuffer);
+
+        vk::CommandBufferBeginInfo beginInfo;
+       
+        commandBuffer.begin(beginInfo);
+    }
+
+    void Context::endSingleTimeCommandBuffer(vk::CommandBuffer& commandBuffer){
+        commandBuffer.end();
+
+        vk::SubmitInfo submitInfo;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffer;
+        graphicsQueue.submit(submitInfo);
+
+        device.waitIdle();
+        device.freeCommandBuffers(singleTimeCommandPool, 1, &commandBuffer);
+    }
 
     void Context::initInstance(){
         vk::ApplicationInfo appInfo(ctxInfo.app_name.c_str(), ctxInfo.appVersion, "VkNovel", VK_MAKE_VERSION(1, 0, 0), VK_API_VERSION_1_2);
@@ -254,6 +284,18 @@ namespace vkn {
             std::cout << "\n\nchosen device: " << physicalDevice.getProperties().deviceName << std::endl;
         }
 
+        //query for some features
+
+        auto features2 = physicalDevice.getFeatures2();
+        vk::PhysicalDeviceDescriptorIndexingFeatures descIndexingFeatures;;
+
+
+        descIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+
+        descIndexingFeatures.shaderStorageImageArrayNonUniformIndexing = VK_TRUE;
+        descIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
+
+
         std::vector<vk::QueueFamilyProperties> queueFamilies = physicalDevice.getQueueFamilyProperties();
         float queuePriority = 1.0f;
         std::vector<vk::DeviceQueueCreateInfo> queueInfos;
@@ -316,6 +358,7 @@ namespace vkn {
         deviceInfo.pQueueCreateInfos = queueInfos.data();
         deviceInfo.enabledExtensionCount = deviceExtensions.size();
         deviceInfo.ppEnabledExtensionNames = deviceExtensions.data();
+        deviceInfo.pNext = &descIndexingFeatures;
 
         device = physicalDevice.createDevice(deviceInfo);
         graphicsQueue = device.getQueue(graphicsQueueFamilyIndex.value(), 0);
@@ -435,6 +478,57 @@ namespace vkn {
 
             swapchainImageViews[i] = device.createImageView(viewInfo);
         }
+    }
+
+    void Context::initSwapchainDepth(){
+        //most common and available pretty much on any system.
+        //perfect for this usage case
+        vk::Format depthFormat = vk::Format::eD32Sfloat;
+
+        vk::ImageCreateInfo imageInfo{};
+        imageInfo.arrayLayers = 1;
+        imageInfo.extent = vk::Extent3D(swapchainExtent, 1);
+        imageInfo.format = depthFormat;
+        imageInfo.imageType = vk::ImageType::e2D;
+        imageInfo.initialLayout = vk::ImageLayout::eUndefined;
+        imageInfo.mipLevels = 1;
+        imageInfo.tiling = vk::ImageTiling::eOptimal;
+        imageInfo.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
+        imageInfo.sharingMode = vk::SharingMode::eExclusive;
+        imageInfo.samples = vk::SampleCountFlagBits::e1;
+
+        VmaAllocationCreateInfo allocInfo{};
+        allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+        VkImage depthImg;
+        VkImageCreateInfo imgCI = imageInfo;
+        auto result = vmaCreateImage(allocator, &imgCI, &allocInfo, &depthImg, &depthImageAlloc, nullptr);
+
+        swapchainDepthImage = vk::Image(depthImg);
+
+        if (result != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create depth image");
+        }
+
+        vk::ImageViewCreateInfo depthViewInfo;
+        depthViewInfo.image = swapchainDepthImage;
+        depthViewInfo.format = depthFormat;
+        depthViewInfo.viewType = vk::ImageViewType::e2D;
+        depthViewInfo.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth;
+        depthViewInfo.subresourceRange.baseArrayLayer = 0;
+        depthViewInfo.subresourceRange.baseMipLevel = 0;
+        depthViewInfo.subresourceRange.levelCount = 1;
+        depthViewInfo.subresourceRange.baseArrayLayer = 0;
+        depthViewInfo.subresourceRange.layerCount = 1;
+
+        swapchainDepthView = device.createImageView(depthViewInfo);
+    }
+
+    void Context::initCommandPool() {
+        vk::CommandPoolCreateInfo createInfo;
+        createInfo.queueFamilyIndex = graphicsQueueFamilyIndex.value();
+        
+        singleTimeCommandPool = device.createCommandPool(createInfo);
     }
 }
 

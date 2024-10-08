@@ -2,7 +2,9 @@
 #include "vkn_context.hpp"
 #include "vkn_cpubuffer.hpp"
 #include "vkn_pipeline.hpp"
+#include "game/vkn_texture.hpp"
 
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "glm/glm.hpp"
 
 namespace vkn {
@@ -15,11 +17,13 @@ namespace vkn {
 		~SpriteRenderer();
 
 		struct SpriteData {
-			glm::mat4 transform;
+			alignas(16) glm::mat4 transform;
+			alignas(16) glm::vec3 col;
+			uint32_t tex_id;
 		};
 
 		void begin();
-		void draw(std::vector<SpriteData>& sprites);
+		void draw(std::vector<SpriteData>& sprites, const std::vector<std::shared_ptr<vkn::Texture>>& tex);
 		void end();
 	private:
 		vkn::Context& context;
@@ -41,11 +45,13 @@ namespace vkn {
 		std::unique_ptr<vkn::Pipeline> pipeline;
 		vk::DescriptorSetLayout setLayout;
 
+		vk::DescriptorPool descPool;
+
 		std::vector<float> quad_vertices = {
-			1.0f ,  1.0f, 0.0f,  // top right
-			1.0f , -1.0f, 0.0f,  // bottom right
-			-1.0f, -1.0f, 0.0f,  // bottom left
-			-1.0f,  1.0f, 0.0f   // top left 
+			1.0f ,  1.0f, 0.0f, 1.0f, 1.0f,  // top right
+			1.0f , -1.0f, 0.0f, 0.0f, 1.0f, // bottom right
+			-1.0f, -1.0f, 0.0f, 0.0f, 0.0f, // bottom left
+			-1.0f,  1.0f, 0.0f, 1.0f, 0.0f  // top left 
 		};
 
 		std::vector<uint32_t> indices = {
@@ -64,6 +70,7 @@ namespace vkn {
 		void initPipeline();
 		void initCommandPool();
 		void initSyncObjects();
+		void initDescPool();
 		
 		glm::mat4 proj = glm::mat4(1.0f);
 

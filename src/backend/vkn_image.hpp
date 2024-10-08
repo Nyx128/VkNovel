@@ -7,9 +7,17 @@ namespace vkn {
 	public:
 		Image(const Image&) = delete;
 		Image& operator=(const Image&) = delete;
+
+		Image(vkn::Context& _context, vk::ImageCreateInfo imgCreateInfo);
+		~Image();
+
+		vk::Image& getHandle() { return handle; }
+
 	private:
+		vkn::Context& context;
+		vk::ImageCreateInfo imgCI;
+
 		vk::Image handle;
-		VmaAllocation memory;
-		vk::ImageLayout currentLayout;
+		VmaAllocation alloc;
 	};
 }

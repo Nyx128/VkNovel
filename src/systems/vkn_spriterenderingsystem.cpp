@@ -1,7 +1,7 @@
 #include "vkn_spriterenderingsystem.hpp"
 
 namespace vkn {
-	SpriteRenderingSystem::SpriteRenderingSystem(vkn::Context& _context):context(_context){
+	SpriteRenderingSystem::SpriteRenderingSystem(vkn::Context& _context, sprite_update func):context(_context), update_func(func){
 		float halfWidth = 8.0f;
 		float aspect = 9.f / 16.f;
 		proj = ortho_proj(-halfWidth, halfWidth, aspect * halfWidth, -(aspect * halfWidth), 0.01f, 100.0f);
@@ -13,25 +13,36 @@ namespace vkn {
 	}
 
 	void SpriteRenderingSystem::addSprite(vkn::Sprite _sprite){
+		if (tex_map.find(_sprite.tex) != tex_map.end()) {
+			tex_indices.push_back(tex_map[_sprite.tex]);
+		}
+		else {
+			tex_indices.push_back(tid);
+			tex_map.insert({ _sprite.tex, tid++ });
+			unique_textures.push_back(_sprite.tex);
+		}
 		sprites.push_back(_sprite);
-		updated = true;
 	}
 
 	std::vector<vkn::SpriteRenderer::SpriteData>& SpriteRenderingSystem::getSpriteData(){
-		if (!updated) {
-			//if the data hasnt been changed in between frames, then just return what we had last frame
-			return sprite_data;
-		}
-		else {
-			//if it did change, update
-			//TODO: currently we are recalculating the whole data, thats not ideal. Create a system, where only the things changed are updated to save frame time
+		//TODO: currently we are recalculating the whole data, thats not ideal. Create a system, where only the things changed are updated to save frame time
+		if (sprites.size() > sprite_data.size()){
 			sprite_data.resize(sprites.size());
-			for (int i = 0; i < sprite_data.size(); i++) {
-				sprite_data[i].transform = proj * getTransform(sprites[i]);
-			}
-			updated = false;
-			return sprite_data;
 		}
+		for (int i = 0; i < sprite_data.size(); i++) {
+			sprite_data[i].transform = proj * getTransform(sprites[i]);
+			sprite_data[i].col = sprites[i].col;
+			sprite_data[i].tex_id = tex_indices[i];
+		}
+		return sprite_data;
+	}
+
+	void SpriteRenderingSystem::update(){
+		update_func(sprites);
+	}
+
+	const std::vector<std::shared_ptr<vkn::Texture>>& SpriteRenderingSystem::get_textures(){
+		return unique_textures;
 	}
 
 	glm::mat4 SpriteRenderingSystem::getTransform(vkn::Sprite& sp) {

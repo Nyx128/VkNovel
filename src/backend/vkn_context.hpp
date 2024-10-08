@@ -32,6 +32,12 @@ namespace vkn {
 		VmaAllocator& getAllocator() { return allocator; }
 		vk::DispatchLoaderDynamic& getDispatchLoader() { return dLoader; }
 
+		vk::Image& getDepthImage() { return swapchainDepthImage; }
+		vk::ImageView& getDepthView() { return swapchainDepthView; }
+
+		void beginSingleTimeCommandBuffer(vk::CommandBuffer& commandBuffer);
+		void endSingleTimeCommandBuffer(vk::CommandBuffer& commandBuffer);
+
 	private:
 		ContextInfo ctxInfo;
 
@@ -70,7 +76,13 @@ namespace vkn {
 		std::vector<vk::ImageView> swapchainImageViews;
 		std::vector<vk::Framebuffer> swapchainFramebuffers;
 
+		vk::Image swapchainDepthImage;
+		vk::ImageView swapchainDepthView;
+		VmaAllocation depthImageAlloc;
+
 		vk::DispatchLoaderDynamic dLoader;
+
+		vk::CommandPool singleTimeCommandPool;
 
 		//functions
 		void initInstance();
@@ -79,5 +91,7 @@ namespace vkn {
 		void initMemoryAllocator();
 		void initSwapchain();
 		void initSwapchainImageViews();
+		void initSwapchainDepth();
+		void initCommandPool();
 	};
 }

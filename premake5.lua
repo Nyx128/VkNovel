@@ -23,7 +23,9 @@ project "VkNovel"
   files{
     "src/**.cpp",
     "src/**.hpp",
-    "include/**.h"
+    "include/**.h",
+	"include/**.hpp",
+	"include/**.inl"
   }
 
   includedirs{vulkanIncludeDir, projectDir .. "\\include", projectDir .. "\\src"}

@@ -113,7 +113,7 @@ namespace vkn {
 		pipelineInfo.pRasterizationState = &rasterizationState;
 		pipelineInfo.pMultisampleState = &multisampleState;
 		pipelineInfo.pColorBlendState = &colorBlendState;
-		pipelineInfo.pDepthStencilState = nullptr;
+		pipelineInfo.pDepthStencilState = &pInfo.depthStencilInfo;
 		pipelineInfo.renderPass = renderpass;
 		pipelineInfo.subpass = 0;
 
