@@ -8,8 +8,10 @@ namespace vkn {
 		initCommandPool();
 		initSyncObjects();
 
-		memcpy(quad_vbo.getMemory(), quad_vertices.data(), quad_vertices.size() * sizeof(float));
-		memcpy(quad_ibo.getMemory(), indices.data(), indices.size() * sizeof(uint32_t));
+		quad_vbo.write(quad_vertices.data(), 0, quad_vertices.size() * sizeof(float));
+		quad_vbo.flush();
+		quad_ibo.write(indices.data(), 0, indices.size() * sizeof(uint32_t));
+		quad_ibo.flush();
 
 		idata_buffers.resize(20);//default max is 20 batches worth which would be 32 * 20 = 640 sprites.
 		for (auto& b : idata_buffers) {
@@ -79,7 +81,7 @@ namespace vkn {
 
 	}
 
-	void SpriteRenderer::draw(std::vector<SpriteData>& sprites, const std::vector<std::shared_ptr<vkn::Texture>>& tex){
+	void SpriteRenderer::draw(const std::vector<SpriteData>& sprites, const std::vector<std::shared_ptr<vkn::Texture>>& tex){
 		auto device = context.getDevice();
 
 		uint32_t numBatches = ceilf((float)sprites.size() / (float)batch_size);
@@ -120,25 +122,6 @@ namespace vkn {
 		commandBuffers[frame_index].bindIndexBuffer(quad_ibo.getHandle(), 0, vk::IndexType::eUint32);
 		VkWriteDescriptorSet _vbufferBufferPush = vbufferPush;
 		context.getDispatchLoader().vkCmdPushDescriptorSetKHR(VkCommandBuffer(commandBuffers[frame_index]), VK_PIPELINE_BIND_POINT_GRAPHICS, VkPipelineLayout(pipeline->getLayout()), 0, 1, &_vbufferBufferPush);
-		
-		/*std::array<vk::DescriptorImageInfo, 2> texInfos;
-		vk::DescriptorImageInfo texInfo;
-		texInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-		texInfo.imageView = tex[0]->getView();
-		texInfo.sampler = tex[0]->getSampler();
-		texInfos[0] = texInfo;
-
-		vk::DescriptorImageInfo texInfo_1;
-		texInfo_1.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-		texInfo_1.imageView = tex[1]->getView();
-		texInfo_1.sampler = tex[1]->getSampler();
-		texInfos[1] = texInfo_1;
-
-		vk::WriteDescriptorSet texPush;
-		texPush.descriptorCount = 2;
-		texPush.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-		texPush.dstBinding = 2;
-		texPush.pImageInfo = texInfos.data();*/
 
 
 		std::vector<vk::DescriptorImageInfo> texInfos(tex.size());

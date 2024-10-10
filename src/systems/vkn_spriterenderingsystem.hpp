@@ -19,7 +19,7 @@ namespace vkn{
 		~SpriteRenderingSystem();
 
 		void addSprite(vkn::Sprite _sprite);
-		std::vector<vkn::SpriteRenderer::SpriteData>& getSpriteData();
+		const std::vector<vkn::SpriteRenderer::SpriteData>& getSpriteData();
 
 		void update();
 

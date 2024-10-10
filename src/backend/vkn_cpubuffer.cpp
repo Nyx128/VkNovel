@@ -11,9 +11,9 @@ namespace vkn {
 		allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
 
 		VmaAllocator& allocator = context.getAllocator();
-		auto result = vmaCreateBuffer(allocator, &static_cast<VkBufferCreateInfo>(bufferInfo), &allocInfo, &buf, &alloc, nullptr);
+		auto result = vmaCreateBuffer(allocator, &static_cast<VkBufferCreateInfo>(bufferInfo), &allocInfo, &vbuffer, &alloc, nullptr);
 		if (result != VK_SUCCESS) { throw std::runtime_error("Failed to create buffer"); }
-		buffer = vk::Buffer(buf);
+		buffer = vk::Buffer(vbuffer);
 
 		result = vmaMapMemory(context.getAllocator(), alloc, &mappedMem);
 		if (result != VK_SUCCESS) { throw std::runtime_error("Failed to map buffer memory"); }
@@ -21,6 +21,6 @@ namespace vkn {
 
 	CPUBuffer::~CPUBuffer(){
 		vmaUnmapMemory(context.getAllocator(), alloc);
-		vmaDestroyBuffer(context.getAllocator(), buf, alloc);
+		vmaDestroyBuffer(context.getAllocator(), vbuffer, alloc);
 	}
 }

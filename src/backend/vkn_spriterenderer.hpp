@@ -1,6 +1,7 @@
 #pragma once
 #include "vkn_context.hpp"
 #include "vkn_cpubuffer.hpp"
+#include "vkn_gpubuffer.hpp"
 #include "vkn_pipeline.hpp"
 #include "game/vkn_texture.hpp"
 
@@ -23,7 +24,7 @@ namespace vkn {
 		};
 
 		void begin();
-		void draw(std::vector<SpriteData>& sprites, const std::vector<std::shared_ptr<vkn::Texture>>& tex);
+		void draw(const std::vector<SpriteData>& sprites, const std::vector<std::shared_ptr<vkn::Texture>>& tex);
 		void end();
 	private:
 		vkn::Context& context;
@@ -61,8 +62,8 @@ namespace vkn {
 
 		const uint32_t batch_size = 32; 
 
-		vkn::CPUBuffer quad_vbo{ context, sizeof(quad_vertices) * sizeof(float), vk::BufferUsageFlagBits::eStorageBuffer };
-		vkn::CPUBuffer quad_ibo{ context, sizeof(quad_vertices) * sizeof(float), vk::BufferUsageFlagBits::eIndexBuffer };
+		vkn::GPUBuffer quad_vbo{ context, quad_vertices.size() * sizeof(float), vk::BufferUsageFlagBits::eStorageBuffer };
+		vkn::GPUBuffer quad_ibo{ context, indices.size() * sizeof(uint32_t), vk::BufferUsageFlagBits::eIndexBuffer};
 		std::vector<std::unique_ptr<vkn::CPUBuffer>> idata_buffers;
 
 		//functions

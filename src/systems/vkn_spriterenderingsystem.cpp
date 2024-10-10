@@ -24,7 +24,7 @@ namespace vkn {
 		sprites.push_back(_sprite);
 	}
 
-	std::vector<vkn::SpriteRenderer::SpriteData>& SpriteRenderingSystem::getSpriteData(){
+	const std::vector<vkn::SpriteRenderer::SpriteData>& SpriteRenderingSystem::getSpriteData(){
 		//TODO: currently we are recalculating the whole data, thats not ideal. Create a system, where only the things changed are updated to save frame time
 		if (sprites.size() > sprite_data.size()){
 			sprite_data.resize(sprites.size());

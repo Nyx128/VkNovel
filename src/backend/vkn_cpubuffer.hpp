@@ -17,7 +17,7 @@ namespace vkn {
 		vk::DeviceSize getSize() { return bufferSize; }
 	private:
 		vk::Buffer buffer;
-		VkBuffer buf;
+		VkBuffer vbuffer;
 		vkn::Context& context;
 		VmaAllocation alloc;
 		VmaAllocationCreateInfo allocInfo = {};
