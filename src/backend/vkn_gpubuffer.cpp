@@ -39,7 +39,11 @@ namespace vkn {
 	}
 
 	GPUBuffer::~GPUBuffer(){
+		auto allocator = context.getAllocator();
+		vmaDestroyBuffer(allocator, vgpuBuffer, gpuAlloc);
 
+		vmaUnmapMemory(allocator, stagingAlloc);
+		vmaDestroyBuffer(allocator, vstagingBuffer, stagingAlloc);
 	}
 
 	//write to the staging buffer
