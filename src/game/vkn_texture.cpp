@@ -151,6 +151,7 @@ namespace vkn {
 	Texture::~Texture(){
 		stbi_image_free(pixels);
 		auto device = context.getDevice();
+		device.waitIdle();
 		device.destroySampler(sampler);
 		device.destroyImageView(imgView);
 	}

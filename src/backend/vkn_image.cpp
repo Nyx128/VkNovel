@@ -3,7 +3,7 @@
 namespace vkn {
 	Image::Image(vkn::Context& _context, vk::ImageCreateInfo imgCreateInfo):context(_context), imgCI(imgCreateInfo){
 		VmaAllocationCreateInfo allocInfo{};
-		allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+		allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
 		VkImageCreateInfo c_info = imgCI;
 		VkImage c_handle;
